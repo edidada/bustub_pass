@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "catalog/catalog.h"
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/update_plan.h"
@@ -61,10 +62,9 @@ class UpdateExecutor : public AbstractExecutor {
   /** The update plan node to be executed */
   const UpdatePlanNode *plan_;
 
-  /** Metadata identifying the table that should be updated */
-  const TableInfo *table_info_;
-
   /** The child executor to obtain value from */
   std::unique_ptr<AbstractExecutor> child_executor_;
+
+  bool returned_;
 };
 }  // namespace bustub

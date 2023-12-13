@@ -145,8 +145,12 @@ class BPlusTree {
   auto InsertRecursively(page_id_t page_id_to_fetch, Context &ctx, const KeyType &key, const ValueType &value,
                          Transaction *txn = nullptr) -> bool;
 
+  auto InsertIntoParent(Context &ctx, const KeyType &key, const page_id_t &value, Transaction *txn = nullptr) -> bool;
+
   // Remove a key-value pair recursively
   void RemoveRecursively(page_id_t page_id_to_fetch, Context &ctx, const KeyType &key, Transaction *txn = nullptr);
+
+  void RemoveFromParent(Context &ctx, const KeyType &key, Transaction *txn = nullptr);
 
   auto UpperBound(const LeafPage *page, const KeyType &key) -> size_t;
   auto UpperBound(const InternalPage *page, const KeyType &key) -> size_t;

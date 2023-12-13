@@ -23,8 +23,11 @@
 
 #include <cstring>
 #include <iostream>
+#include <sstream>
+#include <thread>
 
 #include "common/config.h"
+#include "common/logger.h"
 #include "common/rwlatch.h"
 
 namespace bustub {
@@ -41,6 +44,7 @@ class Page {
  public:
   /** Constructor. Zeros out the page data. */
   Page() {
+    // 512 bytes for insert buffer
     data_ = new char[BUSTUB_PAGE_SIZE];
     ResetMemory();
   }

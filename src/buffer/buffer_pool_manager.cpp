@@ -12,9 +12,12 @@
 
 #include "buffer/buffer_pool_manager.h"
 #include <cstdio>
+#include <sstream>
+#include <thread>
 
 #include "common/config.h"
 #include "common/exception.h"
+#include "common/logger.h"
 #include "common/macros.h"
 #include "storage/page/page.h"
 #include "storage/page/page_guard.h"
@@ -69,15 +72,15 @@ auto BufferPoolManager::NewPage(page_id_t *page_id) -> Page * {
     page_table_.insert({page_id_new, frame_id});
 
     *page_id = page_id_new;
-    // debug 
-    printf("new page_id: %d\n", page_id_new);
+    // debug
+    // printf("new page_id: %d\n", page_id_new);
     return alloc_page;
   }
 }
 
 auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType access_type) -> Page * {
   // debug
-  printf("fetch page_id: %d\n", page_id);
+  // printf("fetch page_id: %d\n", page_id);
   // find in page_table_
   frame_id_t frame_id = -1;
   Page *alloc_page = nullptr;
@@ -114,26 +117,28 @@ auto BufferPoolManager::FetchPage(page_id_t page_id, [[maybe_unused]] AccessType
 
 auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unused]] AccessType access_type) -> bool {
   // debug
-  int old_pin_count = 0;
-  bool old_is_dirty = false;
-  printf("unpin page_id: %d, is_dirty: %d\n", page_id, static_cast<int>(is_dirty));
+  // int old_pin_count = 0;
+  // bool old_is_dirty = false;
+  // printf("unpin page_id: %d, is_dirty: %d\n", page_id, static_cast<int>(is_dirty));
 
   {
     LockGuard guard(latch_);
     auto found = page_table_.find(page_id);
     if (found == page_table_.end()) {
-      printf("\tunpin page_id: %d not found\n", page_id);
+      // printf("\tunpin page_id: %d not found\n", page_id);
       return false;
     }
     frame_id_t frame_id = found->second;
     Page *page = pages_ + frame_id;
     // debug
-    old_pin_count = page->pin_count_;
-    old_is_dirty = page->is_dirty_;
-    printf("\tunpin page_id: %d found [pin_count: %d, is_dirty: %d]\n", page_id, old_pin_count, static_cast<int>(old_is_dirty));
+    // old_pin_count = page->pin_count_;
+    // old_is_dirty = page->is_dirty_;
+    // printf("\tunpin page_id: %d found [pin_count: %d, is_dirty: %d]\n", page_id, old_pin_count,
+    // static_cast<int>(old_is_dirty));
 
     if (page->pin_count_ == 0) {
-      printf("\tunpin page_id: %d reunpinned\n", page_id);
+      // debug
+      // printf("\tunpin page_id: %d reunpinned\n", page_id);
       return false;
     }
     --(page->pin_count_);
@@ -142,7 +147,7 @@ auto BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty, [[maybe_unus
       replacer_->SetEvictable(frame_id, true);
     }
     // debug
-    printf("\t\t-> [pin_count: %d, is_dirty: %d]\n", page->pin_count_, static_cast<int>(page->IsDirty()));
+    // printf("\t\t-> [pin_count: %d, is_dirty: %d]\n", page->pin_count_, static_cast<int>(page->IsDirty()));
   }
   return true;
 }
@@ -155,7 +160,7 @@ auto BufferPoolManager::FlushPage(page_id_t page_id) -> bool {
       return false;
     }
     frame_id_t frame_id = found->second;
-    Page* flush_page = pages_ + frame_id;
+    Page *flush_page = pages_ + frame_id;
     disk_manager_->WritePage(page_id, flush_page->GetData());
     flush_page->is_dirty_ = false;
     return true;
@@ -175,7 +180,12 @@ void BufferPoolManager::FlushAllPages() {
 
 auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
   // debug
-  printf("delete page_id: %d\n", page_id);
+  // printf("delete page_id: %d\n", page_id);
+#ifdef DEBUG_MOD
+  auto log = std::stringstream();
+  log << "DEBUG: thread " << std::this_thread::get_id() << " delete page " << page_id;
+  LOG_DEBUG("%s", log.str().c_str());
+#endif
   {
     LockGuard guard(latch_);
     auto found = page_table_.find(page_id);
@@ -187,9 +197,14 @@ auto BufferPoolManager::DeletePage(page_id_t page_id) -> bool {
     if (page->GetPinCount() > 0) {
       return false;
     }
+    page->is_dirty_ = false;
+    page->page_id_ = INVALID_PAGE_ID;
+    page->pin_count_ = 0;
+    page->ResetMemory();
     page_table_.erase(page_id);
     replacer_->Remove(frame_id);
     free_list_.push_back(frame_id);
+    DeallocatePage(page_id);
   }
   return true;
 }
@@ -202,23 +217,40 @@ auto BufferPoolManager::FetchPageBasic(page_id_t page_id) -> BasicPageGuard {
 }
 
 auto BufferPoolManager::FetchPageRead(page_id_t page_id) -> ReadPageGuard {
+#ifdef DEBUG_MOD
+  auto log = std::stringstream();
+  log << "DEBUG: thread " << std::this_thread::get_id() << " fetch page " << page_id << " for read";
+  LOG_DEBUG("%s", log.str().c_str());
+#endif
   Page *page = FetchPage(page_id);
   page->RLatch();
-  // debug
-  // printf("fetch page_id: %d for read [pin_count: %d]\n", page_id, page->pin_count_);
+#ifdef DEBUG_MOD
+  std::cout << "DEBUG: thread " << std::this_thread::get_id() << " read lock page " << page_id << std::endl;
+#endif
   return {this, page};
 }
 
 auto BufferPoolManager::FetchPageWrite(page_id_t page_id) -> WritePageGuard {
+#ifdef DEBUG_MOD
+  auto log = std::stringstream();
+  log << "DEBUG: thread " << std::this_thread::get_id() << " fetch page " << page_id << " for write";
+  LOG_DEBUG("%s", log.str().c_str());
+#endif
   Page *page = FetchPage(page_id);
   page->WLatch();
-  // debug
-  // printf("fetch page_id: %d for write [pin_count: %d]\n", page_id, page->pin_count_);
+#ifdef DEBUG_MOD
+  std::cout << "DEBUG: thread " << std::this_thread::get_id() << " write lock page " << page_id << std::endl;
+#endif
   return {this, page};
 }
 
 auto BufferPoolManager::NewPageGuarded(page_id_t *page_id) -> BasicPageGuard {
   Page *page = NewPage(page_id);
+#ifdef DEBUG_MOD
+  auto log = std::stringstream();
+  log << "DEBUG: thread " << std::this_thread::get_id() << " create new page " << *page_id;
+  LOG_DEBUG("%s", log.str().c_str());
+#endif
   return {this, page};
 }
 
@@ -230,7 +262,9 @@ auto BufferPoolManager::GetFreeFrameLF(frame_id_t *frame_id) -> bool {
     free_list_.pop_front();
     success = true;
     // debug
+#ifdef DEBUG
     // printf("get free frame_id: %d\n", *frame_id);
+#endif
   } else {
     // evict a frame in replacer
     success = replacer_->Evict(frame_id);

@@ -26,6 +26,8 @@
 
 namespace bustub {
 
+// #define DEBUG_MOD
+
 /**
  * BufferPoolManager reads disk pages to and from its internal buffer pool.
  */

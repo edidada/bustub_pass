@@ -55,37 +55,31 @@ class BPlusTreeInternalPage : public BPlusTreePage {
    * @param max_size Maximal size of the page
    */
   void Init(int max_size = INTERNAL_PAGE_SIZE);
-
   /**
    * @param index The index of the key to get. Index must be non-zero.
    * @return Key at index
    */
   auto KeyAt(int index) const -> KeyType;
-
   /**
    *
    * @param index the index
    * @return the value at the index
    */
   auto ValueAt(int index) const -> ValueType;
-
   auto InsertAt(const KeyType &key, const ValueType &value, int index) -> bool;
-
   void SetKeyAt(const KeyType &key, int index);
-
   void SetValueAt(const ValueType &value, int index);
-
   void RemoveAt(int index);
 
   // remove
-  auto BorrowFromLeft(BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *brother_page_left, int borrow_cnt)
-      -> bool;
-  auto BorrowFromRight(BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *brother_page_right, int borrow_cnt)
-      -> bool;
-  void MergeToLeft(BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *brother_page_left);
-  void MergeToRight(BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *brother_page_right);
+  auto BorrowFromLeft(B_PLUS_TREE_INTERNAL_PAGE_TYPE *left_internal_page) -> bool;
+  auto BorrowFromRight(B_PLUS_TREE_INTERNAL_PAGE_TYPE *right_internal_page) -> bool;
+  void MergeToLeft(B_PLUS_TREE_INTERNAL_PAGE_TYPE *left_internal_page);
+  void MergeToRight(B_PLUS_TREE_INTERNAL_PAGE_TYPE *right_internal_page);
 
-  void SplitTo(BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *dst);
+  // add
+  void InsertAtAndSplitTo(const KeyType &key, const ValueType &value, int index,
+                          BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *dst);
   /**
    * @brief For test only, return a string representing all keys in
    * this internal page, formatted as "(key1,key2,key3,...)"

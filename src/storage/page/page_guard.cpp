@@ -7,8 +7,12 @@
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置:
  * https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
-#include "storage/page/page_guard.h"
+#include <iostream>
+#include <thread>
+
 #include "buffer/buffer_pool_manager.h"
+#include "common/logger.h"
+#include "storage/page/page_guard.h"
 
 namespace bustub {
 
@@ -49,6 +53,10 @@ ReadPageGuard::ReadPageGuard(ReadPageGuard &&that) noexcept { this->guard_ = std
 
 auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & {
   if (this->guard_.page_ != nullptr) {
+#ifdef DEBUG_MOD
+    std::cout << "DEBUG: thread " << std::this_thread::get_id() << " read unlock page " << this->guard_.PageId()
+              << std::endl;
+#endif
     this->guard_.page_->RUnlatch();
   }
   this->guard_ = std::move(that.guard_);
@@ -57,6 +65,10 @@ auto ReadPageGuard::operator=(ReadPageGuard &&that) noexcept -> ReadPageGuard & 
 
 void ReadPageGuard::Drop() {
   if (this->guard_.page_ != nullptr) {
+#ifdef DEBUG_MOD
+    std::cout << "DEBUG: thread " << std::this_thread::get_id() << " read unlock page " << this->guard_.PageId()
+              << std::endl;
+#endif
     this->guard_.page_->RUnlatch();
   }
   this->guard_.Drop();
@@ -68,6 +80,10 @@ WritePageGuard::WritePageGuard(WritePageGuard &&that) noexcept { this->guard_ = 
 
 auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard & {
   if (this->guard_.page_ != nullptr) {
+#ifdef DEBUG_MOD
+    std::cout << "DEBUG: thread " << std::this_thread::get_id() << " write unlock page " << this->guard_.PageId()
+              << std::endl;
+#endif
     this->guard_.page_->WUnlatch();
   }
   this->guard_ = std::move(that.guard_);
@@ -76,6 +92,10 @@ auto WritePageGuard::operator=(WritePageGuard &&that) noexcept -> WritePageGuard
 
 void WritePageGuard::Drop() {
   if (this->guard_.page_ != nullptr) {
+#ifdef DEBUG_MOD
+    std::cout << "DEBUG: thread " << std::this_thread::get_id() << " write unlock page " << this->guard_.PageId()
+              << std::endl;
+#endif
     this->guard_.page_->WUnlatch();
   }
   this->guard_.Drop();

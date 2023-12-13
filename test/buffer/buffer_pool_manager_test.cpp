@@ -224,8 +224,8 @@ TEST(BufferPoolManagerTest, SampleTest2) {
 
   std::vector<int> test{5, 6, 7, 8, 9, 10};
 
-  for (auto v: test) {
-    Page* page = bpm.FetchPage(v);
+  for (auto v : test) {
+    Page *page = bpm.FetchPage(v);
     if (page == nullptr) {
       assert(false);
     }

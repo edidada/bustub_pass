@@ -69,16 +69,16 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto KeyAt(int index) const -> KeyType;
   auto ValueAt(int index) const -> ValueType;
   auto PairAt(int index) const -> const MappingType &;
-  void SetPairAt(int index, const MappingType &pair);
-  auto InsertAt(const KeyType &key, const ValueType &value, int index) -> bool;
+  void SetPairAt(const MappingType &pair, int index);
   // insert
-  void SplitTo(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *dst, page_id_t dst_page_id);
+  auto InsertAt(const KeyType &key, const ValueType &value, int index) -> bool;
+  void InsertAtAndSplitTo(const KeyType &key, const ValueType &value, int index, B_PLUS_TREE_LEAF_PAGE_TYPE *dst);
   // remove
-  auto BorrowFromLeft(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *brother_page_left, int borrow_cnt) -> bool;
-  auto BorrowFromRight(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *brother_page_right, int borrow_cnt)
-      -> bool;
-  void MergeToLeft(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *brother_page_left);
-  void MergeToRight(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *brother_page_right);
+  void RemoveAt(int index);
+  auto BorrowFromLeft(B_PLUS_TREE_LEAF_PAGE_TYPE *left_leaf_page) -> bool;
+  auto BorrowFromRight(B_PLUS_TREE_LEAF_PAGE_TYPE *right_leaf_page) -> bool;
+  void MergeToLeft(B_PLUS_TREE_LEAF_PAGE_TYPE *left_leaf_page);
+  void MergeToRight(B_PLUS_TREE_LEAF_PAGE_TYPE *right_leaf_page);
 
   /**
    * @brief for test only return a string representing all keys in

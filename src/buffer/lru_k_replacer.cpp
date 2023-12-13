@@ -167,5 +167,4 @@ void LRUKReplacer::SetEvictableLF(frame_id_t frame_id, bool set_evictable) {
   }
 }
 
-
 }  // namespace bustub

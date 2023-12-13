@@ -23,6 +23,7 @@
 
 #include "common/exception.h"
 #include "storage/page/b_plus_tree_internal_page.h"
+#include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
 /*****************************************************************************
@@ -35,7 +36,7 @@ namespace bustub {
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(int max_size) {
   SetPageType(IndexPageType::INTERNAL_PAGE);
-  SetSize(1);
+  SetSize(0);
   SetMaxSize(max_size);
 }
 
@@ -58,9 +59,6 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const -> ValueType { ret
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertAt(const KeyType &key, const ValueType &value, int index) -> bool {
-  if (GetSize() >= GetMaxSize() || index < 0 || index > GetSize()) {
-    return false;
-  }
   for (int i = GetSize(); i > index; --i) {
     array_[i] = array_[i - 1];
   }
@@ -78,83 +76,86 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetValueAt(const ValueType &value, int inde
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveAt(int index) {
-  for (int i = index; i < GetSize(); ++i) {
+  for (int i = index; i < GetSize() - 1; ++i) {
     array_[i] = array_[i + 1];
   }
   IncreaseSize(-1);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SplitTo(BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *dst) {
-  int end = GetSize();
-  int start = end >> 1;
-  int dst_begin = 0;
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertAtAndSplitTo(const KeyType &key, const ValueType &value, int index,
+                                                        BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *dst) {
+  auto buffer = new MappingType[GetSize() + 1];
+  for (int i = 0; i < index; ++i) {
+    buffer[i] = array_[i];
+  }
+  buffer[index] = MappingType(key, value);
+  for (int i = index; i < GetSize(); ++i) {
+    buffer[i + 1] = array_[i];
+  }
+  int end = GetSize() + 1;
+  int start = (end + 1) >> 1;
+  for (int i = 0; i < start; ++i) {
+    array_[i] = buffer[i];
+  }
   for (int i = start; i < end; ++i) {
-    dst->array_[dst_begin++] = array_[i];
+    dst->array_[i - start] = buffer[i];
   }
   SetSize(start);
-  dst->SetSize(dst_begin);
+  dst->SetSize(end - start);
+  delete[] buffer;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::BorrowFromLeft(
-    BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *brother_page_left, int borrow_cnt) -> bool {
-  if (brother_page_left->GetSize() < borrow_cnt + GetMinSize()) {
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::BorrowFromLeft(B_PLUS_TREE_INTERNAL_PAGE_TYPE *left_internal_page) -> bool {
+  if (left_internal_page->GetSize() <= GetMinSize()) {
     return false;
   }
-  for (int i = GetMinSize() - 1; i >= borrow_cnt; --i) {
-    array_[i] = array_[i - borrow_cnt];
+  for (int i = GetSize(); i > 0; --i) {
+    array_[i] = array_[i - 1];
   }
-  int borrow_index = brother_page_left->GetSize();
-  for (int i = borrow_cnt - 1; i >= 0; --i) {
-    array_[i] = brother_page_left->array_[--borrow_index];
-  }
-  SetSize(GetMinSize());
-  brother_page_left->SetSize(borrow_index);
+  array_[0] = left_internal_page->array_[left_internal_page->GetSize() - 1];
+  SetSize(GetSize() + 1);
+  left_internal_page->SetSize(left_internal_page->GetSize() - 1);
   return true;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::BorrowFromRight(
-    BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *brother_page_right, int borrow_cnt) -> bool {
-  if (brother_page_right->GetSize() < borrow_cnt + GetMinSize()) {
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::BorrowFromRight(B_PLUS_TREE_INTERNAL_PAGE_TYPE *right_internal_page) -> bool {
+  if (right_internal_page->GetSize() <= GetMinSize()) {
     return false;
   }
-  int index = GetSize();
-  for (int i = 0; i < borrow_cnt; ++i) {
-    array_[index++] = brother_page_right->array_[i];
+  array_[GetSize()] = right_internal_page->array_[0];
+  for (int i = 0; i < right_internal_page->GetSize() - 1; ++i) {
+    right_internal_page->array_[i] = right_internal_page->array_[i + 1];
   }
-  int borrow_index = 0;
-  for (int i = borrow_cnt; i < brother_page_right->GetSize(); ++i) {
-    brother_page_right->array_[borrow_index++] = brother_page_right->array_[i];
-  }
-  SetSize(index);
-  brother_page_right->SetSize(borrow_index);
+  SetSize(GetSize() + 1);
+  right_internal_page->SetSize(right_internal_page->GetSize() - 1);
   return true;
 }
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MergeToLeft(
-    BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *brother_page_left) {
-  int merge_index = brother_page_left->GetSize();
+    BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *left_internal_page) {
+  int merge_index = left_internal_page->GetSize();
   for (int i = 0; i < GetSize(); ++i) {
-    brother_page_left->array_[merge_index++] = array_[i];
+    left_internal_page->array_[merge_index++] = array_[i];
   }
-  brother_page_left->SetSize(merge_index);
+  left_internal_page->SetSize(merge_index);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MergeToRight(
-    BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *brother_page_right) {
-  int merge_index = brother_page_right->GetSize() + GetSize();
+    BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *right_internal_page) {
+  int merge_index = right_internal_page->GetSize() + GetSize();
   int j = merge_index;
-  for (int i = brother_page_right->GetSize() - 1; i >= 0; --i) {
-    brother_page_right->array_[--j] = brother_page_right->array_[i];
+  for (int i = right_internal_page->GetSize() - 1; i >= 0; --i) {
+    right_internal_page->array_[--j] = right_internal_page->array_[i];
   }
   for (int i = GetSize(); i >= 0; i--) {
-    brother_page_right->array_[--j] = array_[i];
+    right_internal_page->array_[--j] = array_[i];
   }
-  brother_page_right->SetSize(merge_index);
+  right_internal_page->SetSize(merge_index);
 }
 
 // valuetype for internalNode should be page id_t
