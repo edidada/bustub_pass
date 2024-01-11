@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <memory>
 #include <vector>
 
 #include "execution/executor_context.h"
@@ -53,6 +54,7 @@ class SeqScanExecutor : public AbstractExecutor {
   const SeqScanPlanNode *plan_;
 
   /** The table iterator */
-  TableIterator table_iter_;
+  // TableIterator table_iter_;
+  std::unique_ptr<TableIterator> table_iter_;
 };
 }  // namespace bustub

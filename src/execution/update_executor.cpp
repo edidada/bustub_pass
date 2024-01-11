@@ -20,33 +20,32 @@ UpdateExecutor::UpdateExecutor(ExecutorContext *exec_ctx, const UpdatePlanNode *
                                std::unique_ptr<AbstractExecutor> &&child_executor)
     : AbstractExecutor(exec_ctx), 
       plan_(plan), 
-      child_executor_(std::move(child_executor)),
-      returned_(false) {
+      child_executor_(std::move(child_executor)) {
   // As of Fall 2022, you DON'T need to implement update executor to have perfect score in project 3 / project 4.
 }
 
 void UpdateExecutor::Init() { 
-  child_executor_->Init();
-}
-
-auto UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool { 
-  if (returned_) {
-    return false;
+  if (inited_) {
+    index_ = 0;
+    return;
   }
 
-  auto table_oid = plan_->GetTableOid();
+  child_executor_->Init();
+
+  // Update
+  auto table_oid = plan_->table_oid_;
   const auto table_info = exec_ctx_->GetCatalog()->GetTable(table_oid);
   const auto index_infos = exec_ctx_->GetCatalog()->GetTableIndexes(table_info->name_);
 
   Tuple child_tuple{};
+  RID child_rid{};
   TupleMeta tuple_meta_delete{INVALID_TXN_ID, INVALID_TXN_ID, true};
   TupleMeta tuple_meta_new{INVALID_TXN_ID, INVALID_TXN_ID, false};
 
   int rt = 0;
 
   // Get the next tuple
-  auto status = child_executor_->Next(&child_tuple, nullptr);
-  while (status) {
+  while (child_executor_->Next(&child_tuple, &child_rid)) {
     // Remove from table(update table meta)
     auto tuple_rid_delete = child_tuple.GetRid();
     table_info->table_->UpdateTupleMeta(tuple_meta_delete, tuple_rid_delete);
@@ -72,15 +71,23 @@ auto UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool {
       index_info->index_->InsertEntry(key_new, *tuple_rid_new, exec_ctx_->GetTransaction());
     }
     ++rt;
-    status = child_executor_->Next(&child_tuple, nullptr);
+    // status = child_executor_->Next(&child_tuple, nullptr);
+
+    inited_ = true;
   }
 
   // return the number of inserted rows
   std::vector<Value> values{};
   values.reserve(GetOutputSchema().GetColumnCount());
   values.push_back(ValueFactory::GetIntegerValue(rt));
-  *tuple = Tuple{values, &GetOutputSchema()};
-  returned_ = true;
+  rt_.emplace_back(values, &GetOutputSchema());
+}
+
+auto UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) -> bool { 
+  if (index_ >= rt_.size()) {
+      return false;
+  }
+  *tuple = rt_[index_++];
   return true;
 }
 

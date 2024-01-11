@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <memory>
 #include <vector>
 
 #include "common/rid.h"
@@ -47,6 +48,6 @@ class IndexScanExecutor : public AbstractExecutor {
   const IndexScanPlanNode *plan_;
 
   BPlusTreeIndexForTwoIntegerColumn* tree_;
-  BPlusTreeIndexIteratorForTwoIntegerColumn index_iter_;  
+  std::unique_ptr<BPlusTreeIndexIteratorForTwoIntegerColumn> index_iter_;  
 };
 }  // namespace bustub

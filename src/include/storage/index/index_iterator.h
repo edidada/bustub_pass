@@ -22,6 +22,7 @@
  * For range scan of b+ tree
  */
 #pragma once
+#include "buffer/buffer_pool_manager.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
 
 namespace bustub {
@@ -33,6 +34,7 @@ class IndexIterator {
  public:
   // you may define your own constructor based on your member variables
   IndexIterator(BufferPoolManager *bpm, ReadPageGuard &&read_page_guard, int index);
+  IndexIterator(IndexIterator&& index_iterator) noexcept;
   ~IndexIterator();
 
   auto IsEnd() -> bool;

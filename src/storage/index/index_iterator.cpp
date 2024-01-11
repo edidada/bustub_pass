@@ -24,6 +24,18 @@ INDEXITERATOR_TYPE::IndexIterator(BufferPoolManager *bpm, ReadPageGuard &&read_p
 }
 
 INDEX_TEMPLATE_ARGUMENTS
+INDEXITERATOR_TYPE::IndexIterator(IndexIterator&& index_iterator) noexcept
+    : bpm_(index_iterator.bpm_), read_page_guard_(std::move(index_iterator.read_page_guard_)), 
+      read_page_(index_iterator.read_page_), index_(index_iterator.index_) {
+  // BUSTUB_ASSERT(read_page_guard_.As<BPlusTreePage>()->IsLeafPage(),
+  //               "read_page_guard is not leaf page (index_iterator construct)");
+  index_iterator.bpm_ = nullptr;
+  index_iterator.read_page_ = nullptr;
+  index_iterator.index_ = -1;
+  // read_page_ = read_page_guard_.As<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>>();
+}
+
+INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE::~IndexIterator() {}  // NOLINT
 
 INDEX_TEMPLATE_ARGUMENTS

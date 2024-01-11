@@ -65,6 +65,8 @@ class UpdateExecutor : public AbstractExecutor {
   /** The child executor to obtain value from */
   std::unique_ptr<AbstractExecutor> child_executor_;
 
-  bool returned_;
+  std::vector<Tuple> rt_;
+  std::size_t index_ = 0;
+  bool inited_ = false;
 };
 }  // namespace bustub

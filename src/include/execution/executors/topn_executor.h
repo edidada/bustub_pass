@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -21,8 +22,78 @@
 #include "execution/plans/seq_scan_plan.h"
 #include "execution/plans/topn_plan.h"
 #include "storage/table/tuple.h"
+#include "type/value.h"
 
 namespace bustub {
+
+struct TopNPair {
+  std::vector<Value> sort_keys_;
+  std::vector<OrderByType> sort_types_;
+  Tuple tuple_;
+  RID rid_;
+
+  TopNPair() = default;
+  TopNPair(std::vector<Value> sort_keys, std::vector<OrderByType> sort_types, Tuple tuple, RID rid)
+      : sort_keys_(std::move(sort_keys)), sort_types_(std::move(sort_types)), tuple_(std::move(tuple)), rid_(rid) {}
+
+  auto operator<(const TopNPair& rhs) const -> bool{
+    for (uint32_t i = 0; i < sort_keys_.size(); ++i) {
+      switch (sort_types_[i]) {
+        case OrderByType::DEFAULT:
+        case OrderByType::ASC:
+          if (sort_keys_[i].CompareLessThan(rhs.sort_keys_[i]) == CmpBool::CmpTrue) {
+            return true;
+          } 
+          if (sort_keys_[i].CompareGreaterThan(rhs.sort_keys_[i]) == CmpBool::CmpTrue) {
+            return false;
+          }
+          break;
+        case OrderByType::DESC:
+          if (sort_keys_[i].CompareGreaterThan(rhs.sort_keys_[i]) == CmpBool::CmpTrue) {
+            return true;
+          } 
+          if (sort_keys_[i].CompareLessThan(rhs.sort_keys_[i]) == CmpBool::CmpTrue) {
+            return false;
+          }
+          break;
+        default:
+          break;
+      }
+    }
+    return false;
+  }
+
+  auto operator>(const TopNPair& rhs) const -> bool{
+    for (uint32_t i = 0; i < sort_keys_.size(); i++) {
+      switch (sort_types_[i]) {
+        case OrderByType::DEFAULT:
+        case OrderByType::ASC:
+          if (sort_keys_[i].CompareLessThan(rhs.sort_keys_[i]) == CmpBool::CmpTrue) {
+            return false;
+          } 
+          if (sort_keys_[i].CompareGreaterThan(rhs.sort_keys_[i]) == CmpBool::CmpTrue) {
+            return true;
+          }
+          break;
+        case OrderByType::DESC:
+          if (sort_keys_[i].CompareGreaterThan(rhs.sort_keys_[i]) == CmpBool::CmpTrue) {
+            return false;
+          } 
+          if (sort_keys_[i].CompareLessThan(rhs.sort_keys_[i]) == CmpBool::CmpTrue) {
+            return true;
+          }
+          break;
+        default:
+          break;
+      }
+    }
+    return false;
+  }
+
+  auto operator<=(const TopNPair& rhs) const -> bool{
+    return !operator>(rhs);
+  }
+};
 
 /**
  * The TopNExecutor executor executes a topn.
@@ -63,5 +134,11 @@ class TopNExecutor : public AbstractExecutor {
   const TopNPlanNode *plan_;
   /** The child executor from which tuples are obtained */
   std::unique_ptr<AbstractExecutor> child_executor_;
+
+  std::vector<TopNPair> sort_pairs_;
+
+  uint32_t idx_ = 0;
+
+  bool inited_ = false;
 };
 }  // namespace bustub
