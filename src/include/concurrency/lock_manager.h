@@ -335,6 +335,13 @@ class LockManager {
   auto FindCycle(txn_id_t source_txn, std::vector<txn_id_t> &path, std::unordered_set<txn_id_t> &on_path,
                  std::unordered_set<txn_id_t> &visited, txn_id_t *abort_txn_id) -> bool;
   void UnlockAll();
+
+  /** Get LockRequestQueue on the resource, if no LockRequestQueue exist, create a new one*/
+  inline auto GetOrCreateLockRequestQueue(const table_oid_t &oid) -> std::shared_ptr<LockRequestQueue>;
+  inline auto GetOrCreateLockRequestQueue(const RID &rid) -> std::shared_ptr<LockRequestQueue>;
+  /** Find LockRequest in the LockRequestQueue*/
+  inline auto FindLockRequest(LockRequestQueue* lock_request_queue, const txn_id_t &txn_id, const table_oid_t &oid) -> std::list<std::shared_ptr<LockRequest>>::iterator;
+  inline auto FindLockRequest(LockRequestQueue* lock_request_queue, const txn_id_t &txn_id, const RID &rid) -> std::list<std::shared_ptr<LockRequest>>::iterator;
   /** Functions related to txn locks*/
   void AddTableLockInTxn(Transaction *txn, LockMode lock_mode, const table_oid_t &oid);
   void AddRowLockInTxn(Transaction *txn, LockMode lock_mode, const table_oid_t &oid, const RID& rid);
