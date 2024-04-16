@@ -21,6 +21,8 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <set>
+#include <stack>
 
 #include "common/config.h"
 #include "common/macros.h"
@@ -350,6 +352,12 @@ class LockManager {
   auto GetTableLockModeInTxn(Transaction *txn, const table_oid_t &oid, LockMode* lock_mode) -> bool;
   auto IsRowLockedInTxn(Transaction *txn, const table_oid_t &oid) -> bool;
   auto GetRowLockModeInTxn(Transaction *txn, const table_oid_t &oid, const RID& rid, LockMode* lock_mode) -> bool;
+  /** Functions related to deadlock detection*/
+  auto AddEdgeLF(txn_id_t t1, txn_id_t t2) -> void;
+  auto RemoveEdgeLF(txn_id_t t1, txn_id_t t2) -> void;
+  auto AddEdgesFromQueue(LockRequestQueue *lock_request_queue) -> void;
+  auto Dfs(txn_id_t x, std::unordered_set<txn_id_t> &visited, std::unordered_set<txn_id_t> &instack, std::stack<txn_id_t>& visit_trace) -> bool;
+
 
   /** Structure that holds lock requests for a given table oid */
   std::unordered_map<table_oid_t, std::shared_ptr<LockRequestQueue>> table_lock_map_;
@@ -366,6 +374,11 @@ class LockManager {
   /** Waits-for graph representation. */
   std::unordered_map<txn_id_t, std::vector<txn_id_t>> waits_for_;
   std::mutex waits_for_latch_;
+  /** Structure for Deadlock detection*/
+  std::set<txn_id_t> alive_txns_;
+
+  /** Structure that records txn is sleep at witch LockRequestQueue*/
+  std::unordered_map<txn_id_t, LockRequestQueue*> txn_wait_map_;
 };
 
 }  // namespace bustub

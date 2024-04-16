@@ -46,9 +46,18 @@ void DeleteExecutor::Init() {
         // Delete from table
         auto tuple_rid_delete = child_tuple.GetRid();
         table_info->table_->UpdateTupleMeta(tuple_meta_delete, tuple_rid_delete);    
+        // Append table write record
+        auto record = TableWriteRecord(table_oid, tuple_rid_delete, table_info->table_.get());
+        record.wtype_ = WType::DELETE;
+        exec_ctx_->GetTransaction()->AppendTableWriteRecord(record);
+
         // Delete from indexes
         for (auto &index_info : index_infos) {
-            index_info->index_->DeleteEntry(child_tuple.KeyFromTuple(table_info->schema_, index_info->key_schema_, index_info->index_->GetKeyAttrs()), tuple_rid_delete, exec_ctx_->GetTransaction());
+            auto key = child_tuple.KeyFromTuple(table_info->schema_, index_info->key_schema_, index_info->index_->GetKeyAttrs());
+            index_info->index_->DeleteEntry(key, tuple_rid_delete, exec_ctx_->GetTransaction());
+            // Append index write record
+            exec_ctx_->GetTransaction()->AppendIndexWriteRecord(IndexWriteRecord(
+                tuple_rid_delete, table_info->oid_, WType::DELETE, key, index_info->index_oid_, exec_ctx_->GetCatalog()));
         }
         ++rt;
     }

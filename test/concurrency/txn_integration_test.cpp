@@ -44,7 +44,7 @@ void Test1(IsolationLevel lvl) {
 }
 
 // NOLINTNEXTLINE
-TEST(VisibilityTest, DISABLED_TestA) {
+TEST(VisibilityTest, TestA) {
   // only this one will be public :)
   Test1(IsolationLevel::READ_COMMITTED);
 }

@@ -25,22 +25,75 @@ SeqScanExecutor::SeqScanExecutor(ExecutorContext *exec_ctx, const SeqScanPlanNod
       table_iter_(nullptr) {}
 
 void SeqScanExecutor::Init() {
-  table_iter_ = std::make_unique<TableIterator>(exec_ctx_->GetCatalog()->GetTable(plan_->table_oid_)->table_->MakeIterator());
+  // try take table lock
+  try {
+    auto lock_manager = exec_ctx_->GetLockManager();
+    bool success = true;
+    // If current seqscan is for delete, try take IX table lock 
+    if (exec_ctx_->IsDelete()) {
+      success = lock_manager->LockTable(exec_ctx_->GetTransaction(), LockManager::LockMode::INTENTION_EXCLUSIVE, plan_->table_oid_);
+    // take IS table lock if possible
+    } else if (exec_ctx_->GetTransaction()->GetIsolationLevel() != IsolationLevel::READ_UNCOMMITTED && 
+              !exec_ctx_->GetTransaction()->IsTableIntentionExclusiveLocked(plan_->table_oid_)) {
+      success = lock_manager->LockTable(exec_ctx_->GetTransaction(), LockManager::LockMode::INTENTION_SHARED, plan_->table_oid_);
+    }
+    if (!success) {
+      throw ExecutionException("Take table lock failed");
+    }
+  } catch (TransactionAbortException e){
+    throw ExecutionException("SeqScan Init failed: " + e.GetInfo());
+  }
+
+  // init the table iterator
+  table_iter_ = std::make_unique<TableIterator>(exec_ctx_->GetCatalog()->GetTable(plan_->table_oid_)->table_->MakeEagerIterator());
 }
 
 auto SeqScanExecutor::Next(Tuple *tuple, RID *rid) -> bool { 
-  while (!table_iter_->IsEnd() && table_iter_->GetTuple().first.is_deleted_) {
-    ++(*table_iter_);
-  }
-  if (table_iter_->IsEnd()) {
+  try {
+    auto lock_manager = exec_ctx_->GetLockManager();
+    while (!table_iter_->IsEnd()) {
+      *rid = table_iter_->GetRID();
+
+      // try to take row lock
+      auto success = true;
+      if (exec_ctx_->IsDelete()) {
+        success = lock_manager->LockRow(exec_ctx_->GetTransaction(), LockManager::LockMode::INTENTION_EXCLUSIVE, plan_->table_oid_, *rid);
+      } else if (exec_ctx_->GetTransaction()->GetIsolationLevel() != IsolationLevel::READ_UNCOMMITTED && 
+                !exec_ctx_->GetTransaction()->IsRowExclusiveLocked(plan_->table_oid_, *rid)) {
+        success = lock_manager->LockRow(exec_ctx_->GetTransaction(), LockManager::LockMode::INTENTION_SHARED, plan_->table_oid_, *rid);
+      }
+      if (!success) {
+        throw ExecutionException("Lock row failed");
+      }
+
+      auto [tuple_meta, tmp_tuple] = table_iter_->GetTuple();
+      ++(*table_iter_);
+
+      // check if the tuple is valid
+      if (tuple_meta.is_deleted_) {
+        if (exec_ctx_->IsDelete() || exec_ctx_->GetTransaction()->GetIsolationLevel() != IsolationLevel::READ_UNCOMMITTED) {
+          success = lock_manager->UnlockRow(exec_ctx_->GetTransaction(), plan_->table_oid_, *rid);
+        }
+        if (!success) {
+          throw ExecutionException("Unlock row failed");
+        }
+        continue;
+      } 
+
+      *tuple = tmp_tuple;
+      if (!exec_ctx_->IsDelete() && exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::READ_COMMITTED) {
+        success = lock_manager->UnlockRow(exec_ctx_->GetTransaction(), plan_->table_oid_, *rid);
+      }
+      if (!success) {
+        throw ExecutionException("Unlock row failed");
+      }
+      return true;
+    }
     return false;
+
+  } catch (TransactionAbortException e){
+    throw ExecutionException("SeqScan Next failed: " + e.GetInfo());
   }
-  *tuple = table_iter_->GetTuple().second;
-  if (rid != nullptr) {
-    *rid = table_iter_->GetRID();
-  } 
-  ++(*table_iter_);
-  return true;
 }
 
 }  // namespace bustub
